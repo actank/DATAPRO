@@ -13,6 +13,9 @@ from scipy.sparse import csr_matrix, hstack
 
 from sklearn import linear_model
 from sklearn import ensemble
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import SelectFromModel
 import numpy as np
 import xgboost as xgb
 import pandas as pd
@@ -24,6 +27,8 @@ input_train_data = pd.DataFrame()
 input_test_data = pd.DataFrame()
 train_data = np.array([])
 test_data = np.array([])
+select_switch = False
+feature_select_clf = None
 
 
 def read_train():
@@ -40,7 +45,7 @@ def read_test():
 
 def feature_extract(source):
     #global input_train_data,input_test_data
-    global train_data, test_data
+    global train_data, test_data,feature_select_clf
     
     if source == "train":
         data = input_train_data.as_matrix()
@@ -51,10 +56,14 @@ def feature_extract(source):
     data = np.char.strip(data.astype(np.str))
 
     combine_feature = np.empty((data.shape[0], 1), dtype=np.int8)
-    #education_native-country
+    ttmp = np.empty((data.shape[0], 1), dtype=np.int8)
+    #+0.02education_native-country
     combine_feature = np.core.defchararray.add(data[:,3].astype(np.str), "#")
     combine_feature = np.core.defchararray.add(combine_feature, data[:,13])
     combine_feature = combine_feature.reshape((combine_feature.shape[0], 1))
+    #+0.3age_occupation 
+    ttmp = np.core.defchararray.add(data[:,0].astype(np.str), "#")
+    combine_feature = np.column_stack((combine_feature, np.core.defchararray.add(ttmp, data[:,12]).reshape((combine_feature.shape[0], 1))))
 
     #组合特征单独处理
     
@@ -95,13 +104,29 @@ def feature_extract(source):
     data = np.delete(data, [label_col], 1)
     data = normalize(data[:,:data.shape[1]-1], norm='l1')
 
-    #合并所有特征
+
+    #特征选择
+    if select_switch == True and feature_select_clf == None:
+        feature_select_clf = ExtraTreesClassifier()
+        feature_select_clf = feature_select_clf.fit(data, label)
+        print(data.shape)
+        print(feature_select_clf.feature_importances_)
+        model = SelectFromModel(feature_select_clf, prefit=True)
+        data = model.transform(data)
+    elif select_switch == True:
+        model = SelectFromModel(feature_select_clf, prefit=True)
+        data = model.transform(data)
+
+
+    #合并所有特征data, combine_feature_result, l
     #data = np.column_stack((data, category_feature.astype(np.int8), label))
     #合并矩阵，存储稀疏矩阵
     data = np.column_stack((data, category_feature.astype(np.int8)))
     l = csr_matrix(label.astype(np.int8).reshape(label.shape[0], 1))
     m = csr_matrix(data)
     m = hstack((m, combine_feature_result))
+
+    
     scipy.sparse.save_npz('./feature_matrix_%s_X.npz' % (source), m)
     scipy.sparse.save_npz('./feature_matrix_%s_Y.npz' % (source), l)
 
@@ -125,6 +150,7 @@ def train_lr_l1():
     X_train_sparse = scipy.sparse.load_npz('./feature_matrix_train_X.npz')
     Y_train_sparse = scipy.sparse.load_npz('./feature_matrix_train_Y.npz')
     Y = Y_train_sparse.toarray()
+    print(X_train_sparse.shape)
     model.fit(X_train_sparse, Y)
     #X_test = np.array(test_data[:,:test_data.shape[1]-1], dtype=np.float)
     #Y_test = np.array(test_data[:,test_data.shape[1]-1], dtype=np.int)
