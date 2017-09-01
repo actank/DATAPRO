@@ -94,6 +94,18 @@ def feature_extract(source):
     #+0.01age_workclass
     ttmp = np.core.defchararray.add(data[:,0].astype(np.str), "#")
     combine_feature = np.column_stack((combine_feature, np.core.defchararray.add(ttmp, data[:,1]).reshape((combine_feature.shape[0], 1))))
+    #+0.002workclass_education-num
+    ttmp = np.core.defchararray.add(data[:,1].astype(np.str), "#")
+    combine_feature = np.column_stack((combine_feature, np.core.defchararray.add(ttmp, data[:,4]).reshape((combine_feature.shape[0], 1))))
+    #+0.004native-country_hours-per-week
+    ttmp = np.core.defchararray.add(data[:,13].astype(np.str), "#")
+    combine_feature = np.column_stack((combine_feature, np.core.defchararray.add(ttmp, data[:,12]).reshape((combine_feature.shape[0], 1))))
+    #occupation_native-country
+    ttmp = np.core.defchararray.add(data[:,6].astype(np.str), "#")
+    combine_feature = np.column_stack((combine_feature, np.core.defchararray.add(ttmp, data[:,13]).reshape((combine_feature.shape[0], 1))))
+
+
+    
 
 
 
