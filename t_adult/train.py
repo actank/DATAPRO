@@ -10,6 +10,7 @@ from sklearn import metrics
 from sklearn import svm
 import scipy
 from scipy.sparse import csr_matrix, hstack
+from scipy import stats
 
 from sklearn import linear_model
 from sklearn import ensemble
@@ -27,7 +28,7 @@ input_train_data = pd.DataFrame()
 input_test_data = pd.DataFrame()
 train_data = np.array([])
 test_data = np.array([])
-select_switch = False
+select_switch = True
 feature_select_clf = None
 
 
@@ -103,6 +104,9 @@ def feature_extract(source):
     #occupation_native-country
     ttmp = np.core.defchararray.add(data[:,6].astype(np.str), "#")
     combine_feature = np.column_stack((combine_feature, np.core.defchararray.add(ttmp, data[:,13]).reshape((combine_feature.shape[0], 1))))
+    #+0.01capital-loss/(capital-loss+apital-gain)
+    ttmp = data[:, 11].astype(np.int64) / (data[:, 11].astype(np.int64) + data[:, 10].astype(np.int64) + 0.01)
+    combine_feature = np.column_stack((combine_feature, ttmp.reshape((combine_feature.shape[0], 1))))
 
 
     
@@ -153,8 +157,14 @@ def feature_extract(source):
     data = normalize(data[:,:data.shape[1]-1], norm='l1')
 
 
-    #特征选择
-    if select_switch == True and feature_select_clf == None:
+    #基于模型的特征选择
+    if select_switch == True and feature_select_clf == None: 
+        #基于pvalue的特征评估
+        print(scipy.stats.pearsonr(data.astype(np.float)[:,0], label.astype(np.float)))
+        print(scipy.stats.pearsonr(data.astype(np.float)[:,1], label.astype(np.float)))
+        print(scipy.stats.pearsonr(data.astype(np.float)[:,2], label.astype(np.float)))
+        print(scipy.stats.pearsonr(data.astype(np.float)[:,3], label.astype(np.float)))
+        sys.exit()
         feature_select_clf = ExtraTreesClassifier()
         feature_select_clf = feature_select_clf.fit(data, label)
         print(data.shape)
