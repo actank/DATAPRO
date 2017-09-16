@@ -13,6 +13,9 @@ from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import SelectFromModel
 from sklearn.externals import joblib
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
 #import xgboost as xgb
 
 import pandas as pd
@@ -117,6 +120,7 @@ def feature_transform(model_version):
         #continous_data = continous_data.drop(['Age', 'Fare'], axis=1)
 
     #######################离散特征###############################################
+    ####实际离散化效果很一般，基本没什么变化，参考https://www.kaggle.com/sinakhorami/titanic-best-working-classifier
     discreate_data = merge_data.drop(['Age', 'Fare', 'Survived', 'tt'], axis=1).copy() 
     #离散特征的缺失值单独成一类NTE
     embarked = discreate_data['Embarked'].fillna('NTE').as_matrix()
@@ -163,6 +167,13 @@ def feature_transform(model_version):
     discreate_data = pd.concat([discreate_data, DataFrame(np.array(tmp), columns=columns)], axis=1)
     #discreate_data = discreate_data.drop(['SibSp'], axis=1)
 
+    #新特征FamilySize家庭成员数量
+    discreate_data['FamilySize'] = discreate_data['SibSp'] + discreate_data['Parch'] + 1
+    #新特征isalone是否一个人
+    discreate_data['IsAlone'] = 0
+    discreate_data.loc[discreate_data['FamilySize'] == 1, 'IsAlone'] = 1
+
+
     #######################稀疏矩阵稀疏保存######################################
 
     #######################组合特征##############################################
@@ -173,7 +184,7 @@ def feature_transform(model_version):
     
     #Pclass&#sex没用
     
-    
+        
     #######################label###################################################
     label = merge_data[['Survived', 'tt']]
 
@@ -238,6 +249,77 @@ def run_train():
     #print("test_acc:%f" % metrics.accuracy_score(test_predict_y, test['Survived']))
 
     joblib.dump(model, '../data/lr.model') 
+    return
+def run_voting_train():
+    gc.enable() 
+    gc.collect() 
+    gc.disable()
+    merge_data = pd.read_csv("../data/prepare_data.csv")
+
+    tr = merge_data.loc[merge_data['tt'] == 1]
+    tr = tr.drop(['tt'], axis=1)
+    te = merge_data.loc[merge_data['tt'] == 0]
+    te = te.drop(['tt', 'Survived'], axis=1)
+    Y = tr['Survived']
+    X = tr.drop(['Survived'], axis=1)
+
+    X = X.as_matrix()
+    Y = Y.as_matrix()
+
+    clf1 = LogisticRegression(penalty='l1',
+            C=1e5,
+            tol=1e-8,
+            verbose=False,
+            random_state=1) 
+    clf2 = RandomForestClassifier(
+            n_estimators=20,
+            max_depth=4,
+            min_samples_leaf=2,
+            min_samples_split=2,
+            #min_weight_fraction_leaf=0.08,
+            random_state=1) 
+    clf3 = GaussianNB() 
+    clf4 = ensemble.GradientBoostingClassifier(
+            n_estimators=500, 
+            max_depth=3, 
+            subsample=0.5,
+            learning_rate=0.01, 
+            max_features=0.8, 
+            min_samples_split=2, 
+            min_samples_leaf=2, 
+            min_weight_fraction_leaf=0.05, 
+            random_state=3, 
+            verbose=False)
+    model = VotingClassifier(estimators=[
+                ('lr', clf1) , ('rf', clf2) , ('gnb', clf3), ('gbdt', clf4) ],
+                voting='soft', weights=[2,1.5,1,1.6]) 
+
+
+    #5折交叉验证
+    kf = KFold(n_splits=6)
+    kf.get_n_splits(X)
+    for tr_index, te_index in kf.split(X):
+        X_train, X_test = X[tr_index], X[te_index]
+        Y_train, Y_test = Y[tr_index], Y[te_index]
+        model.fit(X_train, Y_train)
+        tr_pr = model.predict(X_train)
+        te_pr = model.predict(X_test)
+        train_acc = metrics.accuracy_score(tr_pr, Y_train)
+        test_acc = metrics.accuracy_score(te_pr, Y_test) 
+        print("train_acc: %f test_acc:%f" % (train_acc, test_acc)) 
+    #交叉验证结束
+
+    model.fit(X, Y)
+    train_predict_y = model.predict(X)
+    test_predict_y = model.predict(te)
+    #保存predict结果
+    np.save("../data/voting_predict", test_predict_y)
+    print("\t")
+    print("train_acc:%f" % metrics.accuracy_score(train_predict_y, tr['Survived']))
+    #print("test_acc:%f" % metrics.accuracy_score(test_predict_y, te['Survived']))
+
+    joblib.dump(model, '../data/voting.model') 
+
     return
 def run_sk_gbdt_train():
     tr = merge_data.loc[merge_data['tt'] == 1]
@@ -323,9 +405,10 @@ def submit_gbdt():
 if __name__ == "__main__":
     read_data() 
     feature_transform('lr_v0.1') 
-    run_train() 
+    #run_train() 
     #run_gbdt_train() 
     #run_sk_gbdt_train()
+    run_voting_train() 
     #submmit("../data/lr_predict.npy")
-    submmit('../data/sk_gbdt_predict.npy')
+    submmit('../data/voting_predict.npy')
 
