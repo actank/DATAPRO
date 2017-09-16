@@ -27,7 +27,7 @@ train = None
 test = None
 merge_data = None
 
-def group_age(df, ind, col):
+def group_feature(df, ind, col):
     tmp = df[col].loc[ind]
     if tmp > 0 and tmp < 15 :
         return '1'
@@ -41,106 +41,168 @@ def read_data():
     train = pd.read_csv("../data/train.csv", header=0)
     test = pd.read_csv("../data/test.csv", header=0) 
     return
-def combine_feature():
-    return
-def discritization():
-    return
-def feature_transform():
+def find_feature_columns(name, columns):
+    tmp = []
+    for s in columns:
+        n = s.split("&")
+        if len(n)>=2 and n[0] == name:
+            tmp.append(s)
+    return tmp
+def combine_features(data1, data2, feature1, feature2):
+    data1_columns = find_feature_columns(feature1, data1.columns)
+    data2_columns = find_feature_columns(feature2, data2.columns)
+    tmp = DataFrame([])
+    for data1_column in data1_columns:
+        for data2_column in data2_columns:
+            cn_feature1 = data1_column.split("&")[0]
+            cn_feature1_v = data1_column.split("&")[1]
+            cn_feature2 = data2_column.split("&")[0]
+            cn_feature2_v = data2_column.split("&")[1]
+            combine_name = cn_feature1 + "&" + cn_feature2 + "#" + cn_feature1_v + "&" + cn_feature2_v
+            tmp = pd.concat([tmp, (data1[data1_column] & data2[data2_column]).rename(combine_name)], axis=1)
+    return tmp
+
+#分桶离散化
+def feature_discreatization(data, column, rules):
+    if len(rules) < 1:
+        print("discreatization rules error!") 
+        return
+    tmp = DataFrame([]) 
+    t = DataFrame([])
+    i = 0
+    for rule in rules:
+        t = data[(data[column] >= rule[0]) & (data[column] < rule[1])][column]
+        col = "%s&%d" % (column, i)
+        t = DataFrame(t).rename(columns={column: col})
+        t.loc[~t[col].isnull()] = 1
+        tmp = pd.concat([tmp, t])
+        i = i + 1
+    tmp = tmp.fillna(0).astype(np.int8)
+    tmp = tmp.sort_index() 
+    return tmp
+
+def feature_transform(model_version):
     global train, test, merge_data
+    ##训练集测试集标注
     train['tt'] = 1
     test['tt'] = 0
+
+
+    
+    #######################onehot要先合并 train和test################################
     merge_data = pd.concat([train, test], ignore_index=True)
     merge_data = merge_data.drop(['PassengerId', 'Name', 'Cabin', 'Ticket'], axis=1) 
-    
-    #onehot要先merge train和test
-    
+
+
+    ######################观察理解数据###############################################
+
+    ######################采样#######################################################
+  
     
 
     #######################连续特征, 离散化,归一化(lr需要/gbdt不需要)################ 
-    continous_data = merge_data[['Age', 'Fare']]
+    continous_data = merge_data[['Age', 'Fare']].copy() 
     #用年龄平均值补齐缺失数据
-    merge_data['Age'] = merge_data['Age'].fillna(round(merge_data['Age'].mean(), 0)) 
-
+    continous_data['Age'] = continous_data['Age'].fillna(round(continous_data['Age'].mean(), 0)) 
     #测试集Fare 缺失值用平均值补齐，防止submmission行数不同不通过，不能抛弃
-    merge_data['Fare'] = merge_data['Fare'].fillna(round(merge_data['Fare'].mean(), 0))
+    continous_data['Fare'] = continous_data['Fare'].fillna(round(continous_data['Fare'].mean(), 0))
 
-    columns = merge_data.drop(['Survived', 'tt'], axis=1).columns
-    merge_data = pd.concat([merge_data['Survived'], DataFrame(normalize(merge_data.drop(['Survived', 'tt'], axis=1), norm='l1'), columns=columns)], axis=1) 
-    merge_data = pd.concat([merge_data, tt], axis=1)
+    continous_columns = continous_data.columns
+    if model_version == 'lr_v0.1':
+        #连续特征离散化
+        tmp = feature_discreatization(continous_data, 'Age', [[0, 10], [10, 16], [16, 50], [50, 100]]) 
+        continous_data = pd.concat([continous_data, tmp], axis=1)
+        tmp = feature_discreatization(continous_data, 'Fare', [[0, 50], [50, 1000]])
+        continous_data = pd.concat([continous_data, tmp], axis=1)
+        #continous_data = continous_data.drop(['Age', 'Fare'], axis=1)
 
     #######################离散特征###############################################
-    discreate_data = merge_data.drop(['Age', 'Fare', 'Survived', 'tt'], axis=1)
+    discreate_data = merge_data.drop(['Age', 'Fare', 'Survived', 'tt'], axis=1).copy() 
     #离散特征的缺失值单独成一类NTE
-    embarked = merge_data['Embarked'].fillna('NTE').as_matrix()
+    embarked = discreate_data['Embarked'].fillna('NTE').as_matrix()
+    #离散特征Label编码
     #merge_data['Embarked'] = LabelEncoder().fit_transform(embarked)
     embarked_label_enc = LabelEncoder().fit(embarked)
-
-    merge_data['Embarked'] = embarked_label_enc.transform(merge_data['Embarked'].fillna('NTE'))
+    #embarked离散化
+    discreate_data['Embarked'] = embarked_label_enc.transform(discreate_data['Embarked'].fillna('NTE'))
+    one_hot_enc = OneHotEncoder().fit(discreate_data['Embarked'].as_matrix().reshape(-1, 1)) 
+    tmp = one_hot_enc.transform(discreate_data['Embarked'].values.reshape(-1, 1)).toarray().astype(np.int8)
+    columns = ["Embarked&%s" % i for i in one_hot_enc.active_features_]
+    discreate_data = pd.concat([discreate_data, DataFrame(np.array(tmp), columns=columns)], axis=1)
+    #discreate_data = discreate_data.drop(['Embarked'], axis=1)
+    #sex离散化
     sex_label_enc = LabelEncoder().fit(['male', 'female'])
-    merge_data['Sex'] = sex_label_enc.transform(merge_data['Sex'].fillna('NTE'))
+    discreate_data['Sex'] = sex_label_enc.transform(discreate_data['Sex'].fillna('NTE'))
+    one_hot_enc = OneHotEncoder().fit(discreate_data['Sex'].as_matrix().reshape(-1, 1)) 
+    tmp = one_hot_enc.transform(discreate_data['Sex'].values.reshape(-1, 1)).toarray().astype(np.int8) 
+    columns = ["Sex&%s" % i for i in one_hot_enc.active_features_]
+    discreate_data = pd.concat([discreate_data, DataFrame(np.array(tmp), columns=columns)], axis=1)
+    #discreate_data = discreate_data.drop(['Sex'], axis=1)
 
-    #离散特征离散化
     #Pclass离散化
     tmp = None
-    one_hot_enc = OneHotEncoder().fit(merge_data['Pclass'].as_matrix().reshape(-1, 1))
-    tmp = one_hot_enc.transform(merge_data['Pclass'].values.reshape(-1, 1)).toarray() 
-    merge_data = pd.concat([merge_data, DataFrame(np.array(tmp), columns=['Pclass#1', 'Pclass#2', 'Pclass#3'])], axis=1)
+    one_hot_enc = OneHotEncoder().fit(discreate_data['Pclass'].as_matrix().reshape(-1, 1))
+    tmp = one_hot_enc.transform(discreate_data['Pclass'].values.reshape(-1, 1)).toarray().astype(np.int8) 
+    columns = ["Pclass&%s" % i for i in one_hot_enc.active_features_]
+    discreate_data = pd.concat([discreate_data, DataFrame(np.array(tmp), columns=columns)], axis=1)
+    #discreate_data = discreate_data.drop(['Pclass'], axis=1)
+
+
+    #Parch离散化
+    tmp = None
+    one_hot_enc = OneHotEncoder().fit(discreate_data['Parch'].as_matrix().reshape(-1, 1))
+    tmp = one_hot_enc.transform(discreate_data['Parch'].values.reshape(-1, 1)).toarray().astype(np.int8) 
+    columns = ["Parch&%s" % i for i in one_hot_enc.active_features_]
+    discreate_data = pd.concat([discreate_data, DataFrame(np.array(tmp), columns=columns)], axis=1)
+    #discreate_data = discreate_data.drop(['Parch'], axis=1)
+
+    tmp = None
+    one_hot_enc = OneHotEncoder().fit(discreate_data['SibSp'].as_matrix().reshape(-1, 1))
+    tmp = one_hot_enc.transform(discreate_data['SibSp'].values.reshape(-1, 1)).toarray().astype(np.int8) 
+    columns = ["SibSp&%s" % i for i in one_hot_enc.active_features_]
+    discreate_data = pd.concat([discreate_data, DataFrame(np.array(tmp), columns=columns)], axis=1)
+    #discreate_data = discreate_data.drop(['SibSp'], axis=1)
+
+    #######################稀疏矩阵稀疏保存######################################
 
     #######################组合特征##############################################
     combine_feature = DataFrame([]) 
     #Age#Sex 年龄大的女，年龄小的男放到高维度区分，Age区间为[0-15, 16-40, 40+]
-    age_sex = DataFrame([]) 
-    grouped = merge_data.groupby(lambda x : group_age(merge_data, x, 'Age'))
-    for name, group in grouped:
-        age_sex = pd.concat([age_sex, group['Sex'].apply(lambda x : str(name) + '#' + str(x))])  
-    age_sex = age_sex.rename(columns={0:"Age#Sex"})
-    merge_data = pd.concat([merge_data, age_sex], axis=1)
-    #PClass#Sex 仓位高的女性，更容易生还，但是一等仓的男性有可能都让给了女性，因此划分到高维，实时证明没什么卵用
-    pclass_sex = DataFrame([]) 
-    grouped = merge_data.groupby(['Pclass']) 
-    for name, group in grouped:
-        pclass_sex = pd.concat([pclass_sex, group['Sex'].apply(lambda x : str(name) + '#' + str(x))]) 
-    pclass_sex = pclass_sex.rename(columns={0:"Pclass#Sex"})
-    merge_data = pd.concat([merge_data, pclass_sex], axis=1)
-    #Age#Sex离散化
-    age_sex_label_enc = LabelEncoder().fit(merge_data['Age#Sex'])
-    merge_data['Age#Sex'] = age_sex_label_enc.transform(merge_data['Age#Sex'].fillna('NTE'))
-    one_hot_enc = OneHotEncoder().fit(merge_data['Age#Sex'].as_matrix().reshape(-1, 1))
-    tmp = one_hot_enc.transform(merge_data['Age#Sex'].values.reshape(-1, 1)).toarray() 
-    merge_data = pd.concat([merge_data, DataFrame(np.array(tmp), columns=["Age#Sex&" + str(i) for i in range(one_hot_enc.n_values_[0])])], axis=1)
-    #Pclass#sex离散化
-    label_enc = LabelEncoder().fit(merge_data['Pclass#Sex'])
-    merge_data['Pclass#Sex'] = label_enc.transform(merge_data['Pclass#Sex'].fillna('NTE'))
-    one_hot_enc = OneHotEncoder().fit(merge_data['Pclass#Sex'].as_matrix().reshape(-1, 1))
-    tmp = one_hot_enc.transform(merge_data['Pclass#Sex'].values.reshape(-1, 1)).toarray() 
-    tt = merge_data['tt'].copy() 
-    merge_data = pd.concat([merge_data, DataFrame(np.array(tmp), columns=["Pclass#Sex&" + str(i) for i in range(one_hot_enc.n_values_[0])])], axis=1)
+    age_sex = combine_features(continous_data, discreate_data, 'Age', 'Sex')
+    combine_feature = pd.concat([combine_feature, age_sex], axis=1)
+    
+    #Pclass&#sex没用
     
     
     #######################label###################################################
-    label = merge_data[['Survivd', 'tt']]
+    label = merge_data[['Survived', 'tt']]
 
     #######################合并连续，离散，组合feature，label#######################
     final_data = pd.concat([continous_data, discreate_data], axis=1)
     final_data = pd.concat([final_data, combine_feature], axis=1)
     final_data = pd.concat([final_data, label], axis=1)
 
-    ###################################存数据######################################
-    
-    
+    ######################去掉原始特征#############################################
 
-    print(merge_data)
+    ###################################存数据######################################
+    final_data.to_csv("../data/prepare_data.csv", index=False)
+     
 
     #tmp = OneHotEncoder().fit_transform(data[:,col].reshape(data.shape[0], 1)).toarray()
 
     return
 
 def run_train():
+    gc.enable() 
+    gc.collect() 
+    gc.disable()
+    merge_data = pd.read_csv("../data/prepare_data.csv")
+
     tr = merge_data.loc[merge_data['tt'] == 1]
     tr = tr.drop(['tt'], axis=1)
     te = merge_data.loc[merge_data['tt'] == 0]
     te = te.drop(['tt', 'Survived'], axis=1)
-
+    
     model = linear_model.LogisticRegression(
             penalty='l1',
             C=1e5,
@@ -148,6 +210,7 @@ def run_train():
             verbose=False)
     Y = tr['Survived']
     X = tr.drop(['Survived'], axis=1)
+
 
     #5折交叉验证
     X = X.as_matrix()
@@ -208,7 +271,6 @@ def run_sk_gbdt_train():
         train_acc = metrics.accuracy_score(tr_pr, Y_train)
         test_acc = metrics.accuracy_score(te_pr, Y_test) 
         print("train_acc: %f test_acc:%f" % (train_acc, test_acc)) 
-    sys.exit()  
     model.fit(X, Y)
 
     train_predict_y = model.predict(X)
@@ -260,7 +322,7 @@ def submit_gbdt():
 
 if __name__ == "__main__":
     read_data() 
-    feature_transform() 
+    feature_transform('lr_v0.1') 
     run_train() 
     #run_gbdt_train() 
     #run_sk_gbdt_train()
