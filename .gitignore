@@ -5,3 +5,7 @@
 *.model
 *.npy
 *.zip
+*.dict
+*.tsv
+*.mm
+*.index
