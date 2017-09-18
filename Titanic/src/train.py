@@ -16,6 +16,10 @@ from sklearn.externals import joblib
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
+import keras 
+import tensorflow as tf
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Dropout, Embedding, LSTM
 #import xgboost as xgb
 
 import pandas as pd
@@ -51,6 +55,7 @@ def find_feature_columns(name, columns):
         if len(n)>=2 and n[0] == name:
             tmp.append(s)
     return tmp
+
 def combine_features(data1, data2, feature1, feature2):
     data1_columns = find_feature_columns(feature1, data1.columns)
     data2_columns = find_feature_columns(feature2, data2.columns)
@@ -364,6 +369,42 @@ def run_sk_gbdt_train():
     #print("final test_acc:%f" % metrics.accuracy_score(test_predict_y, ))
 
     return
+def run_dnn():
+    gc.enable() 
+    gc.collect() 
+    gc.disable()
+    merge_data = pd.read_csv("../data/prepare_data.csv")
+
+    tr = merge_data.loc[merge_data['tt'] == 1]
+    tr = tr.drop(['tt'], axis=1)
+    te = merge_data.loc[merge_data['tt'] == 0]
+    te = te.drop(['tt', 'Survived'], axis=1)
+    Y = tr['Survived']
+    X = tr.drop(['Survived'], axis=1)
+
+    X = X.as_matrix()
+    Y = Y.as_matrix()
+
+    model = Sequential()
+    model.add(Dense(20, input_dim=47, activation='sigmoid')) #把dense=1改为20
+    model.add(Dropout(0.5))
+    model.add(Dense(10,activation='relu')) #没有input 表示隐层神经元
+    model.add(Dropout(0.5))
+    model.add(Dense(1,activation='sigmoid')) #输出1维，表示是输出层神经元
+    model.compile(optimizer='rmsprop',loss='binary_crossentropy',metrics=['accuracy'])
+    model.fit(X, Y, nb_epoch=3000, batch_size=32)
+    train_score = model.evaluate(X, Y, batch_size=32) #得到损失值和准确率
+    print("\n")
+    print("train_acc:%f" % train_score[1])
+    train_predict_y = model.predict_classes(X)
+    print("\n")
+    print("train_acc1:%f" % metrics.accuracy_score(train_predict_y, tr['Survived']))
+    #print("test_acc:%f" % metrics.accuracy_score(test_predict_y, te['Survived']))
+    test_predict_y = model.predict_classes(te.as_matrix() )
+
+    np.save("../data/dnn_predict", test_predict_y)
+
+    return
 def run_gbdt_train():
     tr = merge_data.loc[merge_data['tt'] == 1]
     tr = tr.drop(['tt'], axis=1)
@@ -408,7 +449,9 @@ if __name__ == "__main__":
     #run_train() 
     #run_gbdt_train() 
     #run_sk_gbdt_train()
-    run_voting_train() 
+    #run_voting_train() 
+    run_dnn() 
     #submmit("../data/lr_predict.npy")
-    submmit('../data/voting_predict.npy')
+    #submmit('../data/voting_predict.npy')
+    submmit('../data/dnn_predict.npy')
 

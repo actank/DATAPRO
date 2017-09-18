@@ -2,3 +2,6 @@
 *.data
 *.names
 *.csv
+*.model
+*.npy
+*.zip
