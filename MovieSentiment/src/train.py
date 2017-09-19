@@ -229,11 +229,11 @@ def get_word2vec_vector():
 
     return
 
-def train():
+def train(train_vector_file, test_vector_file):
 
-    (X_te, Y_te) = load_svmlight_file("../data/test_vector.mm")
+    (X_te, Y_te) = load_svmlight_file(test_vector_file)
     #trick 读稀疏格式要指定n_features数目，不然模型预测时会报错测试集features与模型features数量不等，这里test的features数目比train的多，因此先读test，之后指定train的n_features为test的特征数量
-    (X, Y) = load_svmlight_file(f="../data/train_vector.mm", n_features=X_te.shape[1])
+    (X, Y) = load_svmlight_file(f=train_vector_file, n_features=X_te.shape[1])
 
     
     #model = svm.SVC(verbose=True)
@@ -287,6 +287,6 @@ if __name__ == "__main__":
     #make_dictionary() 
     #prepare_tfidf_model() 
     #get_vector()
-    get_word2vec_vector() 
-    train() 
+    #get_word2vec_vector() 
+    train("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm") 
     submission("../data/lr_predict.npy")
