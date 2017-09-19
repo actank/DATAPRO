@@ -46,6 +46,22 @@ class MyCorpus(object):
             corp = norm_text(text)
             yield self.__dictionary.doc2bow(corp)
 
+class MySentences(object):
+    def __init__(self, filename):
+        self.filename = filename
+        return
+    def __iter__(self):
+        for f in self.filename:
+            for line in open(f):
+                ll = line.strip().split("\t")
+                if ll[0] == "id":
+                    continue
+                if len(ll) == 2:
+                    yield norm_text(ll[1])
+                elif len(ll) == 3:
+                    yield norm_text(ll[2])
+
+
 def norm_text(corp):
     corp = corp.lower().strip("\"").lstrip("\"").rstrip("\"")
     corp = corp.replace('.', ' . ') \
@@ -158,6 +174,61 @@ def get_vector():
     
     return
 
+def get_word2vec_vector():
+    need_train = False
+    if need_train:
+        sentences = MySentences(['../data/labeledTrainData.tsv', '../data/testData.tsv'])
+        model = models.Word2Vec(sentences, min_count=3, workers=3)
+        model.save("../data/w2v.model")
+
+    model = models.Word2Vec.load("../data/w2v.model")
+
+
+    #转化训练集的vector
+    X = []
+    Y = []
+    with open("../data/labeledTrainData.tsv") as f:
+        for line in f:
+            ll = line.strip().split("\t")
+            if (ll[0] == "id"):
+                continue
+
+            feature_vec = np.zeros(() ,dtype="float32")
+            doc = norm_text(ll[2])
+            nwords = 0
+            for word in doc:
+                if word not in model.wv:
+                    continue
+                nwords = nwords + 1
+                feature_vec = np.add(feature_vec,model.wv[word])
+
+            feature_vec = np.divide(feature_vec, nwords)
+            X.append([ (i, feature_vec[i]) for i in range(len(feature_vec))])  
+            Y.append(ll[1])
+    corpora.SvmLightCorpus.serialize(fname='../data/w2v_train_vector.mm', corpus=X, labels=Y)
+    X = []
+    Y = []
+    with open("../data/testData.tsv", "r") as f:
+        for line in f:
+            ll = line.strip().split("\t")
+            if (ll[0] == "id"):
+                continue
+            doc = norm_text(ll[1])
+            nwords = 0
+            for word in doc:
+                if word not in model.wv:
+                    continue
+                nwords = nwords + 1
+                feature_vec = np.add(feature_vec,model.wv[word])
+            feature_vec = np.divide(feature_vec, nwords)
+            X.append([ (i, feature_vec[i]) for i in range(len(feature_vec))])  
+
+    #测试集不需要Y label
+    corpora.SvmLightCorpus.serialize(fname='../data/w2v_test_vector.mm', corpus=X)
+
+
+    return
+
 def train():
 
     (X_te, Y_te) = load_svmlight_file("../data/test_vector.mm")
@@ -216,5 +287,6 @@ if __name__ == "__main__":
     #make_dictionary() 
     #prepare_tfidf_model() 
     #get_vector()
+    get_word2vec_vector() 
     train() 
     submission("../data/lr_predict.npy")
