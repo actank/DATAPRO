@@ -369,6 +369,100 @@ def run_sk_gbdt_train():
     #print("final test_acc:%f" % metrics.accuracy_score(test_predict_y, ))
 
     return
+def run_stacking_train():
+    gc.enable() 
+    gc.collect() 
+    gc.disable()
+    merge_data = pd.read_csv("../data/prepare_data.csv")
+
+    tr = merge_data.loc[merge_data['tt'] == 1]
+    tr = tr.drop(['tt'], axis=1)
+    te = merge_data.loc[merge_data['tt'] == 0]
+    te = te.drop(['tt', 'Survived'], axis=1)
+    Y = tr['Survived']
+    X = tr.drop(['Survived'], axis=1)
+
+    X = X.as_matrix()
+    Y = Y.as_matrix()
+    #按照https://zhuanlan.zhihu.com/p/26890738 的思路stacking
+
+    clf1 = LogisticRegression(penalty='l1',
+            C=1e5,
+            tol=1e-8,
+            verbose=False,
+            random_state=1) 
+    clf2 = RandomForestClassifier(
+            n_estimators=20,
+            max_depth=4,
+            min_samples_leaf=2,
+            min_samples_split=2,
+            #min_weight_fraction_leaf=0.08,
+            random_state=1) 
+    clf3 = GaussianNB() 
+    clf4 = ensemble.GradientBoostingClassifier(
+            n_estimators=500, 
+            max_depth=3, 
+            subsample=0.5,
+            learning_rate=0.01, 
+            max_features=0.8, 
+            min_samples_split=2, 
+            min_samples_leaf=2, 
+            min_weight_fraction_leaf=0.05, 
+            random_state=3, 
+            verbose=False)
+    clf = [clf1, clf2, clf3, clf4]
+    stack_train = None 
+    stack_test = None
+    i = 0
+    for model in clf:
+        kf = KFold(n_splits=5)
+        kf.get_n_splits(X)
+        tmp_stack_train = None
+        tmp_stack_test = None
+        flag = True
+        for tr_index, te_index in kf.split(X):
+            X_train, X_test = X[tr_index], X[te_index]
+            Y_train, Y_test = Y[tr_index], Y[te_index]
+            model.fit(X_train, Y_train)
+            pred = model.predict(X_test)
+            if flag:
+                tmp_stack_train = pred.reshape((pred.shape[0], 1)) 
+            else:
+                tmp_stack_train = np.vstack((tmp_stack_train, pred.reshape((pred.shape[0], 1)))) 
+
+            pred = model.predict(te)
+            if flag:
+                tmp_stack_test = pred.reshape((pred.shape[0], 1))
+            else:
+                tmp_stack_test = np.hstack((tmp_stack_test, pred.reshape((pred.shape[0], 1))))
+            flag = False
+        tmp_stack_test = np.mean(tmp_stack_test, axis=1) 
+        tmp_stack_test = tmp_stack_test.reshape((tmp_stack_test.shape[0], 1))
+        if i == 0:
+            stack_train = tmp_stack_train
+            stack_test = tmp_stack_test
+        else:
+            stack_train = np.hstack((stack_train, tmp_stack_train))
+            stack_test = np.hstack((stack_test, tmp_stack_test))
+        i = i + 1
+
+    print("stacking train shape:%d %d" % (stack_train.shape)) 
+    print("stacking test shape:%d %d" % (stack_test.shape)) 
+    #第二层
+    clf5 = LogisticRegression(penalty='l1',
+            C=1e5,
+            tol=1e-8,
+            verbose=False,
+            random_state=1) 
+    clf5.fit(stack_train, Y)
+    train_predict_y = clf5.predict(stack_train)
+    test_predict_y = clf5.predict(stack_test)
+    train_acc = metrics.accuracy_score(train_predict_y, Y)
+    print("train_acc: %f" % (train_acc)) 
+    #保存predict结果
+    np.save("../data/stacking_predict", test_predict_y)
+    return
+
 def run_dnn():
     gc.enable() 
     gc.collect() 
@@ -444,14 +538,15 @@ def submit_gbdt():
     return
 
 if __name__ == "__main__":
-    read_data() 
-    feature_transform('lr_v0.1') 
+    #read_data() 
+    #feature_transform('lr_v0.1') 
     #run_train() 
     #run_gbdt_train() 
     #run_sk_gbdt_train()
     #run_voting_train() 
-    run_dnn() 
+    #run_dnn() 
+    run_stacking_train() 
     #submmit("../data/lr_predict.npy")
     #submmit('../data/voting_predict.npy')
-    submmit('../data/dnn_predict.npy')
+    submmit('../data/stacking_predict.npy')
 
