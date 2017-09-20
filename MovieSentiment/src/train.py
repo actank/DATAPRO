@@ -339,53 +339,82 @@ def train_lstm(train_vector_file, test_vector_file):
     #embedding_layer = Embedding(input_dim=X_train.shape[1],
     #                        output_dim=X_train.shape[1])
 
-    print('Build model...')
+    need_train = True
+    if need_train:
+        print('Build model...')
 
-    model = Sequential()
-    #model.add(embedding_layer)
-    model.add(keras.layers.recurrent.LSTM(units=100, 
-                                        input_shape=(None, X_train.shape[2]),
-                                        #input_dim=X_train.shape[2],
-                                        return_sequences=False,
-                                        activation='relu', 
-                                        use_bias=True, 
-                                        kernel_initializer='glorot_uniform', 
-                                        recurrent_initializer='orthogonal', 
-                                        bias_initializer='zeros', 
-                                        unit_forget_bias=True, 
-                                        kernel_regularizer=None, 
-                                        recurrent_regularizer=None, 
-                                        bias_regularizer=None, 
-                                        activity_regularizer=None, 
-                                        kernel_constraint=None, 
-                                        recurrent_constraint=None, 
-                                        bias_constraint=None, 
-                                        dropout=0.2, 
-                                        recurrent_dropout=0.2)) 
-    #model.add(LSTM(100, input_dim=128)) 
+        model = Sequential()
+        #model.add(embedding_layer)
+        model.add(keras.layers.recurrent.LSTM(units=100, 
+                                            input_shape=(None, X_train.shape[2]),
+                                            #input_dim=X_train.shape[2],
+                                            return_sequences=False,
+                                            activation='relu', 
+                                            use_bias=True, 
+                                            kernel_initializer='glorot_uniform', 
+                                            recurrent_initializer='orthogonal', 
+                                            bias_initializer='zeros', 
+                                            unit_forget_bias=True, 
+                                            kernel_regularizer=None, 
+                                            recurrent_regularizer=None, 
+                                            bias_regularizer=None, 
+                                            activity_regularizer=None, 
+                                            kernel_constraint=None, 
+                                            recurrent_constraint=None, 
+                                            bias_constraint=None, 
+                                            dropout=0.2, 
+                                            recurrent_dropout=0.2)) 
+        #model.add(LSTM(100, input_dim=128)) 
+        '''
+        #双层lstm 需要更改第一层return_sequences=True，然效果并不好
+        model.add(keras.layers.recurrent.LSTM(units=100, 
+                                            input_shape=(None, 100),
+                                            #input_dim=X_train.shape[2],
+                                            return_sequences=False,
+                                            activation='relu', 
+                                            use_bias=True, 
+                                            kernel_initializer='glorot_uniform', 
+                                            recurrent_initializer='orthogonal', 
+                                            bias_initializer='zeros', 
+                                            unit_forget_bias=True, 
+                                            kernel_regularizer=None, 
+                                            recurrent_regularizer=None, 
+                                            bias_regularizer=None, 
+                                            activity_regularizer=None, 
+                                            kernel_constraint=None, 
+                                            recurrent_constraint=None, 
+                                            bias_constraint=None, 
+                                            dropout=0.2, 
+                                            recurrent_dropout=0.2)) 
+        '''
 
-    model.add(Dense(128, input_dim=100))
-    model.add(Activation('sigmoid'))
-    model.add(Dense(2, activation='softmax'))
-    #model.layers[1].trainable=False
-    histories = Histories()
-    model.compile(loss='sparse_categorical_crossentropy',
-                  optimizer='adam',
-                  metrics=['mse'])
-    model.summary() 
-    
-    print('Train...')
-    model.fit(X_train, Y_train, batch_size=50, epochs=10,
-              validation_data=(X_train, Y_train))
-    score, acc = model.evaluate(X_val, Y_val,
-                                batch_size=50)
-    print('Test score:', score)
-    print('Test accuracy:', acc)
-    print('Train auc:', roc_auc_score(Y_train, model.predict(X_train)[:, 1])) 
-    print('Val auc:', roc_auc_score(Y_val, model.predict(X_val)[:, 1]))
-    test_predict_y = model.predict(X_te)[:, 1]
+        model.add(Dense(128, input_dim=100))
+        model.add(Activation('sigmoid'))
+        model.add(Dense(2, input_dim=100, activation='softmax'))
+        #model.layers[1].trainable=False
+        histories = Histories()
+        model.compile(loss='sparse_categorical_crossentropy',
+                      optimizer='adam',
+                      metrics=['mse'])
+        model.summary() 
+        
+        print('Train...')
+        model.fit(X_train, Y_train, batch_size=50, epochs=30,
+                  validation_data=(X_train, Y_train))
+        score, acc = model.evaluate(X_val, Y_val,
+                                    batch_size=50)
+        print('Test score:', score)
+        print('Test accuracy:', acc)
+        print('Train auc:', roc_auc_score(Y_train, model.predict(X_train)[:, 1])) 
+        print('Val auc:', roc_auc_score(Y_val, model.predict(X_val)[:, 1]))
+    else:
+        model = keras.models.load_model("../data/lstm.model") 
+    #test_predict_y = model.predict(X_te)[:, 1]
 
-    model.save("../data/lstm.model")
+    test_predict_y = model.predict_classes(X_te)
+
+    if need_train:
+        model.save("../data/lstm.model")
     np.save("../data/lstm_predict", test_predict_y)
 
     return
