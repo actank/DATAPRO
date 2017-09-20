@@ -6,6 +6,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords  
 from nltk.stem.porter import PorterStemmer   
 from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
 from sklearn import linear_model
 import sklearn
 from sklearn import svm
@@ -14,6 +15,10 @@ from sklearn.datasets import load_svmlight_file
 from sklearn import metrics
 import pandas as pd
 import numpy as np
+import keras
+from keras.models import Sequential
+from keras.layers import Embedding, LSTM, Dense, Activation
+import tensorflow as tf
 
 import sys
 import os
@@ -271,6 +276,77 @@ def train(train_vector_file, test_vector_file):
 
     return
 
+def convert_sparse_matrix_to_sparse_tensor(X) :
+    coo = X.tocoo() 
+    indices = np.mat([coo.row, coo.col]) .transpose() 
+    return tf.SparseTensor(indices, coo.data, coo.shape) 
+
+def train_lstm(train_vector_file, test_vector_file):
+
+    (X_te, Y_te) = load_svmlight_file(test_vector_file)
+    #trick 读稀疏格式要指定n_features数目，不然模型预测时会报错测试集features与模型features数量不等，这里test的features数目比train的多，因此先读test，之后指定train的n_features为test的特征数量
+    (X, Y) = load_svmlight_file(f=train_vector_file, n_features=X_te.shape[1])
+    X = X.todense()
+    X_te = X_te.todense()
+    X_train, X_val, Y_train, Y_val = train_test_split(X, Y, test_size=0.2, random_state=20)
+
+    #神特么技巧，要先np.array()转换后才能reshape 
+    X_train = np.array(X_train) 
+    X_train = X_train.reshape(X_train.shape[0], 1, X_train.shape[1])
+    X_val = np.array(X_val)
+    X_val = np.reshape(X_val, (X_val.shape[0], 1, X_val.shape[1]))
+    X_te = np.array(X_te) 
+    X_te = np.reshape(X_te, (X_te.shape[0], 1, X_te.shape[1]))
+
+    #embedding_layer = Embedding(input_dim=X_train.shape[1],
+    #                        output_dim=X_train.shape[1])
+
+    print('Build model...')
+
+    model = Sequential()
+    #model.add(embedding_layer)
+    model.add(keras.layers.recurrent.LSTM(units=100, 
+                                        #input_shape=(1, X_train.shape[1]),
+                                        input_dim=X_train.shape[2],
+                                        return_sequences=False,
+                                        activation='relu', 
+                                        use_bias=True, 
+                                        kernel_initializer='glorot_uniform', 
+                                        recurrent_initializer='orthogonal', 
+                                        bias_initializer='zeros', 
+                                        unit_forget_bias=True, 
+                                        kernel_regularizer=None, 
+                                        recurrent_regularizer=None, 
+                                        bias_regularizer=None, 
+                                        activity_regularizer=None, 
+                                        kernel_constraint=None, 
+                                        recurrent_constraint=None, 
+                                        bias_constraint=None, 
+                                        dropout=0.2, 
+                                        recurrent_dropout=0.2)) 
+    #model.add(LSTM(100, input_dim=128)) 
+
+    model.add(Dense(128, input_dim=100))
+    model.add(Activation('sigmoid'))
+    model.add(Dense(2, activation='softmax'))
+    #model.layers[1].trainable=False
+    model.compile(loss='sparse_categorical_crossentropy',
+                  optimizer='adam',
+                  metrics=['mae'])
+    model.summary() 
+    
+    print('Train...')
+    model.fit(X_train, Y_train, batch_size=50, epochs=5,
+              validation_data=(X_train, Y_train))
+    score, acc = model.evaluate(X_val, Y_val,
+                                batch_size=50)
+    print('Test score:', score)
+    print('Test accuracy:', acc)
+
+    model.save("../data/lstm.model")
+
+    return
+
 def submission(predict):
     test_data = pd.read_csv('../data/testData.tsv', header=0, sep="\t")
     predict = np.load(predict)
@@ -288,5 +364,7 @@ if __name__ == "__main__":
     #prepare_tfidf_model() 
     #get_vector()
     #get_word2vec_vector() 
-    train("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm") 
-    submission("../data/lr_predict.npy")
+    #train("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm") 
+    #train_lstm("../data/train_vector.mm", "../data/test_vector.mm")
+    train_lstm("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm")
+    #submission("../data/lr_predict.npy")
