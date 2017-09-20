@@ -13,6 +13,7 @@ from sklearn import svm
 from sklearn.naive_bayes import GaussianNB
 from sklearn.datasets import load_svmlight_file
 from sklearn import metrics
+from sklearn.metrics import roc_auc_score
 import pandas as pd
 import numpy as np
 import keras
@@ -28,6 +29,43 @@ english_stopwords = stopwords.words('english')
 st = PorterStemmer()     
 filt_stop_words = ['/','<','>',',','.',':',';','?','!','(',')','[',']','@','&','#','%','$','{','}','--','-', '``', '\\']
 extra_stop_words = ["'s", "''", "'ve", "n't"]
+
+
+
+class Histories(keras.callbacks.Callback):
+    def on_train_begin(self, logs={}):
+        self.aucs = []
+        self.losses = []
+
+    def on_train_end(self, logs={}):
+        return
+
+    def on_epoch_begin(self, epoch, logs={}):
+        return
+
+    def on_epoch_end(self, epoch, logs={}):
+        self.losses.append(logs.get('loss'))
+        y_pred = self.model.predict(self.validation_data[0:2])
+
+        yp = []
+        for i in xrange(0, len(y_pred)):
+            yp.append(y_pred[i][0])
+        yt = []
+        for x in self.validation_data[2]:
+            yt.append(x[0])
+        
+        auc = roc_auc_score(yt, yp)
+        self.aucs.append(auc)
+        print('val-loss',logs.get('loss'), ' val-auc: ',auc)
+        print('\n')
+        
+        return
+
+    def on_batch_begin(self, batch, logs={}):
+        return
+
+    def on_batch_end(self, batch, logs={}):
+        return
 
 
 class MyCorpus(object):
@@ -306,8 +344,8 @@ def train_lstm(train_vector_file, test_vector_file):
     model = Sequential()
     #model.add(embedding_layer)
     model.add(keras.layers.recurrent.LSTM(units=100, 
-                                        #input_shape=(1, X_train.shape[1]),
-                                        input_dim=X_train.shape[2],
+                                        input_shape=(None, X_train.shape[2]),
+                                        #input_dim=X_train.shape[2],
                                         return_sequences=False,
                                         activation='relu', 
                                         use_bias=True, 
@@ -330,20 +368,25 @@ def train_lstm(train_vector_file, test_vector_file):
     model.add(Activation('sigmoid'))
     model.add(Dense(2, activation='softmax'))
     #model.layers[1].trainable=False
+    histories = Histories()
     model.compile(loss='sparse_categorical_crossentropy',
                   optimizer='adam',
-                  metrics=['mae'])
+                  metrics=['mse'])
     model.summary() 
     
     print('Train...')
-    model.fit(X_train, Y_train, batch_size=50, epochs=5,
+    model.fit(X_train, Y_train, batch_size=50, epochs=10,
               validation_data=(X_train, Y_train))
     score, acc = model.evaluate(X_val, Y_val,
                                 batch_size=50)
     print('Test score:', score)
     print('Test accuracy:', acc)
+    print('Train auc:', roc_auc_score(Y_train, model.predict(X_train)[:, 1])) 
+    print('Val auc:', roc_auc_score(Y_val, model.predict(X_val)[:, 1]))
+    test_predict_y = model.predict(X_te)[:, 1]
 
     model.save("../data/lstm.model")
+    np.save("../data/lstm_predict", test_predict_y)
 
     return
 
@@ -368,3 +411,4 @@ if __name__ == "__main__":
     #train_lstm("../data/train_vector.mm", "../data/test_vector.mm")
     train_lstm("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm")
     #submission("../data/lr_predict.npy")
+    submission("../data/lstm_predict.npy")
