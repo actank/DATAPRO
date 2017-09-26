@@ -17,5 +17,5 @@ for i in range(slide_window_len):
     label_window_start = label_window_start.strftime('%Y-%m-%d %H')
     label_window_end = label_window_end.strftime('%Y-%m-%d %H')
     feature_window_start = feature_window_start.strftime('%Y-%m-%d %H')
-    os.system("hive -hiveconf l_w_s=%s -hiveconf l_w_e=%s -hiveconf f_w=%s -f get_feature.sql > tmp" % (label_window_start, label_window_end, feature_window_start))
+    os.system("hive -hiveconf l_w_s=%s -hiveconf l_w_e=%s -hiveconf f_w=%s -f get_feature.sql" % (label_window_start, label_window_end, feature_window_start))
 

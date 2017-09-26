@@ -1,7 +1,10 @@
 use tb;
 
+drop table train_10 if exists;
+create table train_10 as
 select 
-    feature1.item_category,
+    l.item_id as item_id,
+    feature1.item_category as item_category,
     case behavior_type
         when 4 then '1'
         else '0'
