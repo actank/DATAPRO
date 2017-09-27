@@ -27,7 +27,7 @@ import os
 dictionary = None
 english_stopwords = stopwords.words('english')
 st = PorterStemmer()     
-filt_stop_words = ['/','<','>',',','.',':',';','?','!','(',')','[',']','@','&','#','%','$','{','}','--','-', '``', '\\']
+filt_stop_words = ['/','<','>',',','.',':',';','\'','?','!','(',')','[',']','@','&','#','%','$','{','}','--','-', '``', '\\']
 extra_stop_words = ["'s", "''", "'ve", "n't"]
 
 
@@ -74,7 +74,11 @@ class MyCorpus(object):
         self.__data = data
         return
     def __iter__(self):
+        i = 0
         for line in open(self.__data):
+            if i == 100:
+                break
+            i = i + 1
             ll = line.split("\t")
             if ll[0] == 'id':
                 continue
@@ -272,6 +276,29 @@ def get_word2vec_vector():
 
     return
 
+def get_lda_vector():
+    corp = MyCorpus("../data/labeledTrainData.tsv")
+    corpus = []
+    for text in corp:
+        corpus.append(text)
+    corp = MyCorpus("../data/testData.tsv")
+    for text in corp:
+        corpus.append(text)
+    corp = MyCorpus("../data/unlabeledTrainData.tsv")
+    for text in corp:
+        corpus.append(text)
+
+    dic = corpora.Dictionary.load("../data/labeled_train_data_dict.dict")
+
+    model = models.LdaModel(corpus, num_topics=10, id2word=dic)
+    print(model.show_topic(0)) 
+    print(model.print_topics(10)) 
+    print(model[corpus[0]])
+
+
+    return
+
+
 def train(train_vector_file, test_vector_file):
 
     (X_te, Y_te) = load_svmlight_file(test_vector_file)
@@ -419,6 +446,7 @@ def train_lstm(train_vector_file, test_vector_file):
 
     return
 
+
 def submission(predict):
     test_data = pd.read_csv('../data/testData.tsv', header=0, sep="\t")
     predict = np.load(predict)
@@ -436,8 +464,10 @@ if __name__ == "__main__":
     #prepare_tfidf_model() 
     #get_vector()
     #get_word2vec_vector() 
+    get_lda_vector() 
     #train("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm") 
     #train_lstm("../data/train_vector.mm", "../data/test_vector.mm")
-    train_lstm("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm")
+
+    #train_lstm("../data/w2v_train_vector.mm", "../data/w2v_test_vector.mm")
     #submission("../data/lr_predict.npy")
-    submission("../data/lstm_predict.npy")
+    #submission("../data/lstm_predict.npy")
