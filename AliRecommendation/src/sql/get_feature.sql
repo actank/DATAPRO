@@ -325,5 +325,5 @@ left join test_1_ui_features_10 f3 on l.item_id=f3.item_id and l.user_id=f3.user
 left join test_2_ui_features_10 f4 on l.item_id=f4.item_id and l.user_id=f4.user_id
 left join test_1_user_features_10 f5 on l.user_id=f5.user_id;
 
-insert overwrite local directory '/home/hadoop/yjsdir/DATAPRO/AliRecommendation/data/submit_data/' row format delimited fields terminated by ',' select * from wyp;
+insert overwrite local directory '/home/hadoop/yjsdir/DATAPRO/AliRecommendation/data/submit_data/' row format delimited fields terminated by ',' select * from test_10;
 --------------------------------------------提交集结束---------------------------------------------------------------
