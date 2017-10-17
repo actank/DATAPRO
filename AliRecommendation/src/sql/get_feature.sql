@@ -63,7 +63,7 @@ where
     time>='2014-12-07 00' and time<'2014-12-17 00'
 group by user_id, item_id;
 
---用户对商品最后一(缺二，三，七天内，因为一次计算内存不够，放到多个表里)天内是否有行为
+--用户对商品最后一(缺二，三，七天内，因为一次计算内存不够，放到多个表里)天内行为数
 drop table if exists 2_ui_features_10;
 create table 2_ui_features_10 as 
 select
@@ -76,6 +76,20 @@ from tianchi_fresh_comp_train_user
 where 
     time>='2014-12-07 00' and time<'2014-12-17 00'
 group by user_id, item_id;
+
+--用户最后三天内是否有行为
+drop table if exists 3_ui_features_10;
+create table 3_ui_features_10 as 
+select
+    user_id,item_id,
+    if(sum(case when (behavior_type=1 and datediff(to_date('2014-12-17'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_13,
+    if(sum(case when (behavior_type=2 and datediff(to_date('2014-12-17'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_14,
+    if(sum(case when (behavior_type=3 and datediff(to_date('2014-12-17'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_15,
+    if(sum(case when (behavior_type=4 and datediff(to_date('2014-12-17'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_16
+from tianchi_fresh_comp_train_user 
+where 
+    time>='2014-12-07 00' and time<'2014-12-17 00'
+group by user_id,item_id;
 
 --用户过去七天动作数，用户过去七天平均每天行为数
 drop table if exists 1_user_features_10;
@@ -259,7 +273,7 @@ where
     time>='2014-12-09 00' and time<'2014-12-19 00'
 group by user_id, item_id;
 
---用户对商品最后一(缺二，三，七天内，因为一次计算内存不够，放到多个表里)天内是否有行为
+--用户对商品最后一(缺二，三，七天内，因为一次计算内存不够，放到多个表里)天内行为数
 drop table if exists test_2_ui_features_10;
 create table test_2_ui_features_10 as 
 select
@@ -272,6 +286,19 @@ from tianchi_fresh_comp_train_user
 where 
     time>='2014-12-09 00' and time<'2014-12-19 00'
 group by user_id, item_id;
+
+drop table if exists test_3_ui_features_10;
+create table test_3_ui_features_10 as 
+select
+    user_id,item_id,
+    if(sum(case when (behavior_type=1 and datediff(to_date('2014-12-19'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_13,
+    if(sum(case when (behavior_type=2 and datediff(to_date('2014-12-19'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_14,
+    if(sum(case when (behavior_type=3 and datediff(to_date('2014-12-19'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_15,
+    if(sum(case when (behavior_type=4 and datediff(to_date('2014-12-19'), to_date(time))=3 ) then 1 else 0 end)>1,1,0) as ui_16
+from tianchi_fresh_comp_train_user 
+where 
+    time>='2014-12-09 00' and time<'2014-12-19 00'
+group by user_id,item_id;
 
 --用户过去七天动作数，用户过去七天平均每天行为数
 drop table if exists test_1_user_features_10;
