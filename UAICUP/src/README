@@ -1,0 +1,16 @@
+---------v0.1------------
+执行extract_feature.sql提取特征
+执行get_train_val_data.sql进行训练集验证集划分
+执行python transform_train.py 进行训练集／验证集／测试集的格式转换
+执行train.sh训练模型
+执行predict.sh进行预测
+执行python upload_predict.py 合并预测结果并upload
+执行eval.sh进行train/test评估
+
+
+
+
+TODO:
+    1.调整正负样本比例。
+    2.提取新特征。
+    3.model ensemblling
