@@ -4,7 +4,7 @@ id string,
 predict string)
 ROW FORMAT DELIMITED
 FIELDS TERMINATED BY ',';
-load data local inpath '/home/hadoop/yjsdir/DATAPRO/UAICUP/src/prepare_data/submit_data/predict.data' overwrite into table eval_predict;
+load data local inpath '/home/hadoop/yjsdir/DATAPRO/UAICUP/src/prepare_data/test_data/predict.data' overwrite into table eval_predict;
 
 
 
@@ -23,7 +23,7 @@ f.create_hour as create_hour,
 label,
 if(predict>0.9, 1, 0) as predict
 from eval_predict
-left join feature_data_30 as f
+left join feature_data_all as f
 on eval_predict.id = f.id
 ) t
 group by

@@ -350,4 +350,3 @@ FIELDS TERMINATED BY ',';
 load data local inpath '/home/hadoop/yjsdir/DATAPRO/UAICUP/src/poi_cluster.csv' overwrite into table poi_cluster;
 
 
-

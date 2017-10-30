@@ -29,6 +29,8 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY ',';
 load data local inpath '/home/hadoop/yjsdir/DATAPRO/UAICUP/data/train_Aug.csv' overwrite into table train_Aug;
 
+
+--这里用人工补充整点数据weather_fill.csv代替weather.csv
 create table weather(
 w_date string,
 w_text string,
@@ -44,7 +46,7 @@ wind_speed float,
 wind_scale int)
 ROW FORMAT DELIMITED
 FIELDS TERMINATED BY ',';
-load data local inpath '/home/hadoop/yjsdir/DATAPRO/UAICUP/data/weather.csv' overwrite into table weather;
+load data local inpath '/home/hadoop/yjsdir/DATAPRO/UAICUP/data/weather_fill.csv' overwrite into table weather;
 
 create table poi(
 id string,
